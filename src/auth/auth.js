@@ -1,21 +1,16 @@
-const adminAuth = function (req, res, next) {
-  var token = "xyz"
-  if(token !== "xyz"){
-  res.status(401).send('Unauthorized access');
+const jwt = require('jsonwebtoken');
+const User = require('../model/User');
+
+const userAuth = async function (req, res, next) {
+  var token = req.cookies.token;
+  const {_id} = await jwt.verify(token,"Tinder@123$321");
+  const user = await User.findOne({_id:_id});
+  if(!user){
+   res.status(401).send('Unauthorized access..');
   }else{
-    console.log('Authorized access');
+    req.user = user;
     next();
   }
 }
 
-const userAuth = function (req, res, next) {
-  var token = "xyz"
-  if(token !== "xyz"){
-  res.status(401).send('Unauthorized access');
-  }else{
-    console.log('Authorized access');
-    next();
-  }
-}
-
-module.exports = {adminAuth, userAuth};
+module.exports = {userAuth};

@@ -4,7 +4,10 @@ const {adminAuth,userAuth} = require('./auth/auth');
  const User = require('./model/User');
 const { connect } = require('./database/Database');
 const { model } = require('mongoose');
-
+const becrypt = require('bcrypt');
+const cookieParser = require('cookie-parser');
+const jwt = require('jsonwebtoken');
+const cors = require('cors');
 var app = express();
 
 
@@ -16,29 +19,82 @@ connect().then(()=>{
   }).catch((err)=>{
     console.log("Database not connected",err);
 });
-
+app.use(cookieParser());
 app.use(express.json());
-app.use('/admin', adminAuth);
+app.use(cors({origin:"http://localhost:5173",credentials:true}));
 app.use('/user', userAuth);
 
 app.post('/signup', async function (req, res) {
-   var user = new User({
-    firstName: "Chandra1" ,
-    lastName: "Ch",
-    email: "chandra1@gmail.com",
-    skills:"no skills",
+   
+   const hashPassword = await becrypt.hash(req.body.password,10);
+   const user = new User({
+    firstName: req.body.firstName,
+    lastName: req.body.lastName,
+    email: req.body.email,
+    password: hashPassword,
     age: 32,
-    gender: "xyz"
+    gender: req.body.gender
    });
     await user.save().then((data)=>{
       console.log("Signup success",data);
-      res.send('Data Saved Successfully...');
+      res.send(`Hellow ${data.firstName}.. You have Successfully sign up...`);
     }).catch((err)=>{
       res.send('Error occured while signup...');
       console.log("Error in signup",err);
     });
    
 })
+
+app.post('/login', async function(req, res) {
+ try{
+  const {email,password }= req.body;
+  const userData = await User.findOne({email:email});
+  if(!userData){
+    res.status(401).send('Invalid email or password');
+  }
+
+  const comparePassword = await becrypt.compare(password,userData.password);
+  if(comparePassword){
+  const token = await jwt.sign({_id:userData._id},"Tinder@123$321");
+  res.cookie('token',token);
+  res.status(200).send(userData);
+  }else{
+    throw new Error('Invalid email or password');
+  }
+ }catch(err){
+  res.status(500).send('Login is failed due to some error, '+err);
+ }
+});
+
+app.get('/user/profile',userAuth, async function (req, res) {
+  try{
+  const user = req.user;
+  console.log("User id from cookie",user);
+  if(user){
+    console.log("User id from cookie",user);
+    res.send(user);
+  }else{
+    throw new Error('No user found...');
+  }
+  
+  }catch(err){
+    res.status(401).send('Unauthorized access, '+err);
+  }
+  
+
+})
+
+app.post('/sendConnectionRequest', userAuth, async function (req, res){
+ try{
+  const user = req.user;
+  console.log("set connection request successfully");
+  res.send(user.firstName + " sent connection request successfully");
+ }catch(err){
+  res.status(500).send('Error in sending connection request, '+err);
+ }
+  
+
+});
 
 app.patch('/user/updateProfile',async function (req, res) {
   const id = req.body.id;
@@ -69,9 +125,6 @@ app.get('/admin/userData', async function (req, res) {
   //res.send('This is user Data...');
 });
 
-app.get('/user/createUser', function (req, res) {
-  res.send('This is create User...');m 
-});
 
 app.use(function (error,req, res, next) {
   if(error){
